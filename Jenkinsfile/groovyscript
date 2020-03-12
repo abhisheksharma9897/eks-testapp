@@ -1,0 +1,46 @@
+pipeline {
+ 
+  agent any
+  stages {
+    stage('fetching code') {
+      steps {
+        git branch: 'master',
+            credentialsId: 'c89623b7-1834-46bb-80d5-f63775e38aba',
+            url: 'https://github.com/abhisheksharma9897/eks-testapp.git'
+      }
+    }
+      stage('Building docker image') {
+          steps {
+              script {
+          // delete previous image from host machine
+          sh("docker rmi eks-test-app")
+          //retreiving auth token
+          sh("aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 096002618444.dkr.ecr.ap-south-1.amazonaws.com/eks-test-app")
+          //building image
+          sh("docker build -t eks-test-app .")
+              }
+          }
+      }
+      
+      stage('Push to AWS ECR') {
+          steps {
+              script {
+                  //tagging image
+                  sh("docker tag eks-test-app:latest 096002618444.dkr.ecr.ap-south-1.amazonaws.com/eks-test-app:latest")
+                  //push
+                  sh("docker push 096002618444.dkr.ecr.ap-south-1.amazonaws.com/eks-test-app:latest")
+              }
+          }
+      }
+      
+      stage('Deploying to EKS cluster') {
+          steps {
+              script {
+                  //invoking ansible-playbook
+                  sh("ansible-playbook -i /var/lib/jenkins/eksdeploy/inventory /var/lib/jenkins/eksdeploy/tasks/main.yml")
+              }
+          }
+      }
+    }
+}
+
